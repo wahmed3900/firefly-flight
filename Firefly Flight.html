@@ -205,20 +205,21 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
     showBest();
   }
 
-  function update(){
-    t++;
-    stars.forEach(s => s.p += 0.03);
+  // dt = 1.0 at 60fps, 0.5 at 120fps, 0.42 at 144fps -> same speed on every screen
+  function update(dt){
+    t += dt;
+    stars.forEach(s => s.p += 0.03 * dt);
     if (state === 'menu'){ fly.y = H*0.42 + Math.sin(t/22)*14; return; }
-    fly.vy += 0.38; fly.vy = Math.min(fly.vy, 9);
-    fly.y += fly.vy;
+    fly.vy += 0.38 * dt; fly.vy = Math.min(fly.vy, 9);
+    fly.y += fly.vy * dt;
     if (state === 'dead'){ if (fly.y > waterY()) fly.y = waterY(); return; }
 
     speed = 2.6 + Math.min(score * 0.05, 2.2);
-    spawnT -= speed;
+    spawnT -= speed * dt;
     if (spawnT <= 0){ spawn(); spawnT = 260; }
 
     reeds.forEach(r => {
-      r.x -= speed;
+      r.x -= speed * dt;
       if (!r.passed && r.x + r.w < fly.x){ r.passed = true; score++; scoreEl.textContent = score; sfx.tick(); }
       const inX = fly.x + fly.r > r.x && fly.x - fly.r < r.x + r.w;
       if (inX && (fly.y - fly.r < r.top || fly.y + fly.r > r.top + r.gap)) die();
@@ -226,7 +227,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
     reeds = reeds.filter(r => r.x > -80);
 
     drops.forEach(d => {
-      d.x -= speed; d.p += 0.08;
+      d.x -= speed * dt; d.p += 0.08 * dt;
       if (!d.got && Math.hypot(d.x - fly.x, d.y - fly.y) < 22){
         d.got = true; score += 3; scoreEl.textContent = score; sfx.dew();
         for (let i=0;i<14;i++){ const a = Math.random()*Math.PI*2; sparks.push({x:d.x,y:d.y,vx:Math.cos(a)*3,vy:Math.sin(a)*3,life:1,pink:true}); }
@@ -236,7 +237,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
 
     if (fly.y + fly.r > waterY() || fly.y - fly.r < 0) die();
 
-    sparks.forEach(s => { s.x += s.vx; s.y += s.vy; s.life -= 0.035; });
+    sparks.forEach(s => { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= 0.035 * dt; });
     sparks = sparks.filter(s => s.life > 0);
   }
 
@@ -257,9 +258,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
   }
   function roundRect(x,y,w,h,rad){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x,y,w,h,rad) : ctx.rect(x,y,w,h); ctx.fill(); }
 
-  function draw(){
+  function draw(dt){
     ctx.save();
-    if (shake > 0){ ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake); shake *= 0.85; if (shake < .5) shake = 0; }
+    if (shake > 0){ ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake); shake *= Math.pow(0.85, dt); if (shake < .5) shake = 0; }
     const g = ctx.createLinearGradient(0,0,0,H);
     g.addColorStop(0, C.top); g.addColorStop(1, C.bot);
     ctx.fillStyle = g; ctx.fillRect(-20,-20,W+40,H+40);
@@ -305,8 +306,15 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
     ctx.restore();
   }
 
-  function loop(){ update(); draw(); requestAnimationFrame(loop); }
-  loop();
+  let last = performance.now();
+  function loop(now){
+    // cap dt so a tab switch or lag spike can't teleport the firefly into a reed
+    const dt = Math.min((now - last) / (1000 / 60), 3);
+    last = now;
+    update(dt); draw(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(t0 => { last = t0; loop(t0); });
 
   const press = e => {
     if (e.target.closest('button')) return;
@@ -376,4 +384,5 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
 })();
 </script>
 </body>
-</html>
+  </html>
+  
